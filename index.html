@@ -11,10 +11,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
-        // Safe Polyfill for process.env
-        window.process = window.process || { env: {} };
-        window.process.env = window.process.env || {};
-        // Do not hardcode API_KEY to "" if it might be injected by the platform
+        // Ensure process object exists without wiping out platform-injected variables
+        if (typeof window.process === 'undefined') {
+            window.process = { env: {} };
+        } else if (typeof window.process.env === 'undefined') {
+            window.process.env = {};
+        }
     </script>
     <style>
         body { font-family: 'Inter', sans-serif; }

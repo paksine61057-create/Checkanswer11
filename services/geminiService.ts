@@ -11,64 +11,81 @@ export async function scanExamPaper(
   totalQuestions: number,
   answerOptions: string[] = ["ก", "ข", "ค", "ง"]
 ): Promise<ScanResponse> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const model = 'gemini-3-flash-preview';
+  const apiKey = process.env.API_KEY;
   
-  const prompt = `
-    Analyze this exam paper image. Extract the student's selected answers for ${totalQuestions} questions.
-    The student marks the answers using Thai characters: ${answerOptions.join(', ')}.
-    If a question is skipped or the mark is unclear, return null for that answer.
-    Focus on finding question numbers 1 to ${totalQuestions} and their corresponding marks.
-    Ensure accuracy in OCR for Thai characters like 'ก', 'ข', 'ค', 'ง'.
-  `;
+  if (!apiKey || apiKey === "undefined") {
+    throw new Error("API Key is missing. Please configure it in your environment.");
+  }
 
-  const response = await ai.models.generateContent({
-    model: model,
-    contents: {
-      parts: [
-        {
-          inlineData: {
-            mimeType: 'image/jpeg',
-            data: base64Image,
-          },
-        },
-        { text: prompt },
-      ],
-    },
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          detectedAnswers: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING, nullable: true },
-            description: "List of detected answer choices (e.g., 'ก', 'ข') corresponding to question index."
-          },
-          confidence: {
-            type: Type.NUMBER,
-            description: "Confidence level of the extraction (0 to 1)."
-          }
-        },
-        required: ["detectedAnswers", "confidence"],
-      },
-    },
-  });
+  const ai = new GoogleGenAI({ apiKey });
+  const modelName = 'gemini-3-flash-preview';
+  
+  const systemInstruction = `You are a professional exam grader. 
+Your task is to perform OCR on a student's exam paper image.
+The exam uses Thai multiple-choice options: ${answerOptions.join(', ')}.
+You must identify and extract the student's marks for questions 1 to ${totalQuestions}.
+If a student marks multiple answers or if it's illegible, return null for that question.
+Strictly return the results as a JSON array of strings corresponding to the marks.`;
+
+  const prompt = `Analyze this image and list the answers for ${totalQuestions} questions. Make sure to only return the JSON data based on the schema provided.`;
 
   try {
-    // Clean potential markdown blocks from response text
-    let cleanText = response.text || '{}';
-    if (cleanText.includes('```')) {
-      cleanText = cleanText.replace(/```json/g, '').replace(/```/g, '').trim();
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: 'image/jpeg',
+              data: base64Image,
+            },
+          },
+          { text: prompt },
+        ],
+      },
+      config: {
+        systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            detectedAnswers: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING, nullable: true },
+              description: "Array of extracted Thai characters (ก, ข, ค, ง) for each question."
+            },
+            confidence: {
+              type: Type.NUMBER,
+              description: "OCR confidence level from 0.0 to 1.0"
+            }
+          },
+          required: ["detectedAnswers", "confidence"],
+        },
+      },
+    });
+
+    const responseText = response.text;
+    if (!responseText) {
+      throw new Error("No response text from Gemini");
     }
+
+    // Attempt to parse JSON
+    const data = JSON.parse(responseText.trim());
     
-    const data = JSON.parse(cleanText);
+    // Validate and fix result length
+    let answers = Array.isArray(data.detectedAnswers) ? data.detectedAnswers : [];
+    if (answers.length < totalQuestions) {
+      answers = [...answers, ...Array(totalQuestions - answers.length).fill(null)];
+    } else if (answers.length > totalQuestions) {
+      answers = answers.slice(0, totalQuestions);
+    }
+
     return {
-      detectedAnswers: data.detectedAnswers || [],
-      confidence: data.confidence || 0,
+      detectedAnswers: answers,
+      confidence: data.confidence || 0.5,
     };
-  } catch (error) {
-    console.error("Failed to parse Gemini response:", error);
-    throw new Error("ไม่สามารถประมวลผลข้อมูลจากรูปภาพได้");
+  } catch (error: any) {
+    console.error("Gemini Scan Error:", error);
+    throw new Error(`การสแกนล้มเหลว: ${error.message || "ปัญหาทางเทคนิค"}`);
   }
 }

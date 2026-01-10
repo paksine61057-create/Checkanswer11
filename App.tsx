@@ -129,17 +129,20 @@ export default function App() {
         const { detectedAnswers } = await scanExamPaper(base64Image, config.totalQuestions);
         
         let score = 0;
-        detectedAnswers.forEach((ans, idx) => {
+        // Ensure we handle potentially null or missing detected answers safely
+        const finalAnswers = Array.isArray(detectedAnswers) ? detectedAnswers : [];
+        
+        finalAnswers.forEach((ans, idx) => {
           if (ans && config.answerKey[idx] && ans.trim() === config.answerKey[idx].trim()) {
             score++;
           }
         });
 
-        setCurrentScanResult({ score, detected: detectedAnswers });
+        setCurrentScanResult({ score, detected: finalAnswers });
         setAppState(AppState.REVIEW);
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
-        alert("การสแกนล้มเหลว กรุณาลองใหม่อีกครั้ง");
+        alert(err.message || "การสแกนล้มเหลว กรุณาลองใหม่อีกครั้ง");
       } finally {
         setIsScanning(false);
       }
