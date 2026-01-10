@@ -11,8 +11,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
-        // Polyfill process.env for browser compatibility
-        window.process = { env: { API_KEY: "" } };
+        // Safe Polyfill for process.env
+        window.process = window.process || { env: {} };
+        window.process.env = window.process.env || {};
+        // Do not hardcode API_KEY to "" if it might be injected by the platform
     </script>
     <style>
         body { font-family: 'Inter', sans-serif; }

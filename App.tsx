@@ -1,8 +1,8 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { AppState, ExamConfig, ExamResult, Student } from './types';
-import { scanExamPaper } from './services/geminiService';
-import { BookIcon, CameraIcon, CheckIcon, DownloadIcon, UserIcon } from './components/Icons';
+import { AppState, ExamConfig, ExamResult, Student } from './types.ts';
+import { scanExamPaper } from './services/geminiService.ts';
+import { BookIcon, CameraIcon, CheckIcon, DownloadIcon, UserIcon } from './components/Icons.tsx';
 
 // Global declaration for XLSX (from CDN in index.html)
 declare var XLSX: any;

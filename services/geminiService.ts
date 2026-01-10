@@ -56,7 +56,13 @@ export async function scanExamPaper(
   });
 
   try {
-    const data = JSON.parse(response.text || '{}');
+    // Clean potential markdown blocks from response text
+    let cleanText = response.text || '{}';
+    if (cleanText.includes('```')) {
+      cleanText = cleanText.replace(/```json/g, '').replace(/```/g, '').trim();
+    }
+    
+    const data = JSON.parse(cleanText);
     return {
       detectedAnswers: data.detectedAnswers || [],
       confidence: data.confidence || 0,
