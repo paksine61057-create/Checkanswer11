@@ -93,7 +93,11 @@ export default function App() {
   const initCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1920 }, // Request high res for OCR
+          height: { ideal: 1080 }
+        } 
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -118,18 +122,22 @@ export default function App() {
 
     const canvas = canvasRef.current;
     const video = videoRef.current;
+    
+    // Set canvas size to video's actual resolution
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
+    
     if (ctx) {
       ctx.drawImage(video, 0, 0);
-      const base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+      // Using quality 0.95 for clear text OCR
+      const base64Image = canvas.toDataURL('image/jpeg', 0.95).split(',')[1];
 
       try {
-        const { detectedAnswers } = await scanExamPaper(base64Image, config.totalQuestions);
+        const result = await scanExamPaper(base64Image, config.totalQuestions);
+        const { detectedAnswers } = result;
         
         let score = 0;
-        // Ensure we handle potentially null or missing detected answers safely
         const finalAnswers = Array.isArray(detectedAnswers) ? detectedAnswers : [];
         
         finalAnswers.forEach((ans, idx) => {
@@ -141,8 +149,9 @@ export default function App() {
         setCurrentScanResult({ score, detected: finalAnswers });
         setAppState(AppState.REVIEW);
       } catch (err: any) {
-        console.error(err);
-        alert(err.message || "การสแกนล้มเหลว กรุณาลองใหม่อีกครั้ง");
+        console.error("App Scan Error:", err);
+        // แสดง Error ละเอียดเพื่อให้ผู้ใช้ทราบว่าทำไมล้มเหลว
+        alert(err.message || "การสแกนล้มเหลว กรุณาลองใหม่และตรวจสอบความสว่างของภาพ");
       } finally {
         setIsScanning(false);
       }
@@ -376,6 +385,7 @@ export default function App() {
                 {isScanning && (
                   <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white">
                     <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-400 border-t-transparent mb-4"></div>
+                    <p className="mt-2 font-semibold">AI กำลังวิเคราะห์รูปภาพ...</p>
                   </div>
                 )}
               </div>
@@ -387,7 +397,7 @@ export default function App() {
                   className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2"
                 >
                   <CameraIcon className="w-6 h-6" />
-                  {isScanning ? 'กำลังตรวจข้อสอบ...' : 'บันทึกภาพและตรวจ'}
+                  {isScanning ? 'กำลังประมวลผล...' : 'บันทึกภาพและตรวจ'}
                 </button>
               </div>
             </div>
