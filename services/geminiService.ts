@@ -1,8 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export interface ScanResponse {
   detectedAnswers: string[];
   confidence: number;
@@ -13,6 +11,7 @@ export async function scanExamPaper(
   totalQuestions: number,
   answerOptions: string[] = ["ก", "ข", "ค", "ง"]
 ): Promise<ScanResponse> {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = 'gemini-3-flash-preview';
   
   const prompt = `
