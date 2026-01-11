@@ -11,32 +11,26 @@ export async function scanExamPaper(
   totalQuestions: number,
   answerOptions: string[] = ["ก", "ข", "ค", "ง"]
 ): Promise<ScanResponse> {
-  // Use the global process.env.API_KEY directly
   const apiKey = process.env.API_KEY;
   
   if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    throw new Error("ไม่พบ API Key ในระบบ กรุณาตรวจสอบการตั้งค่า Environment Variable ใน Vercel");
+    throw new Error("ไม่พบ API Key ในระบบ กรุณาตรวจสอบการตั้งค่าใน Environment Variables");
   }
 
   const ai = new GoogleGenAI({ apiKey });
   const modelName = 'gemini-3-flash-preview';
   
-  const prompt = `คุณคือผู้เชี่ยวชาญด้านการตรวจข้อสอบ (Exam Grader)
-หน้าที่ของคุณคืออ่านรูปภาพกระดาษคำตอบและดึงข้อมูลคำตอบของนักเรียนออกมา
-ข้อสอบมีทั้งหมด ${totalQuestions} ข้อ
-ตัวเลือกที่นักเรียนสามารถเลือกได้คือ: ${answerOptions.join(', ')}
+  const promptText = `คุณคือผู้เชี่ยวชาญด้าน OCR สำหรับตรวจข้อสอบ
+วิเคราะห์รูปภาพกระดาษคำตอบนี้และดึงตัวเลือกที่นักเรียนระบุ (ก, ข, ค, ง)
+สำหรับข้อที่ 1 ถึง ${totalQuestions}
 
-คำแนะนำในการทำงาน:
-1. ตรวจสอบหมายเลขข้อ 1 ถึง ${totalQuestions}
-2. ระบุตัวอักษรภาษาไทย (ก, ข, ค, ง) ที่นักเรียนเลือกในแต่ละข้อ
-3. หากข้อใดนักเรียนไม่ได้ตอบ หรืออ่านไม่ออก ให้ระบุเป็น null ใน JSON
-4. ให้คำตอบออกมาเป็น JSON ตามโครงสร้างที่กำหนดเท่านั้น ห้ามมีคำอธิบายอื่น
-
-โครงสร้างข้อมูลที่ต้องการ:
+ส่งกลับมาในรูปแบบ JSON เท่านั้น ห้ามมีคำอธิบายอื่นหรือคำพูดนำหน้าใดๆ ทั้งสิ้น:
 {
-  "detectedAnswers": ["ก", "ข", null, "ง", ...],
-  "confidence": 0.95
-}`;
+  "detectedAnswers": ["ก", "ข", "", "ง", ...],
+  "confidence": 0.98
+}
+- ความยาวของ array ต้องเท่ากับ ${totalQuestions}
+- หากข้อใดไม่ชัดเจนให้ใส่เป็นค่าว่าง ""`;
 
   try {
     const response = await ai.models.generateContent({
@@ -49,7 +43,7 @@ export async function scanExamPaper(
               data: base64Image,
             },
           },
-          { text: prompt },
+          { text: promptText },
         ],
       },
       config: {
@@ -59,12 +53,12 @@ export async function scanExamPaper(
           properties: {
             detectedAnswers: {
               type: Type.ARRAY,
-              items: { type: Type.STRING, nullable: true },
-              description: "รายการคำตอบที่ตรวจพบ เรียงตามลำดับข้อ"
+              items: { type: Type.STRING },
+              description: "Array ของตัวเลือกที่ตรวจพบ"
             },
             confidence: {
               type: Type.NUMBER,
-              description: "ค่าความเชื่อมั่นในการอ่าน (0.0 - 1.0)"
+              description: "ค่าความแม่นยำ 0-1"
             }
           },
           required: ["detectedAnswers", "confidence"],
@@ -72,37 +66,33 @@ export async function scanExamPaper(
       },
     });
 
-    const resultText = response.text;
-    if (!resultText) {
-      throw new Error("โมเดลไม่ตอบสนองข้อมูล (Empty Response)");
+    let output = response.text || "";
+    
+    // ทำความสะอาดข้อความ เผื่อโมเดลส่งคำว่า launch! หรือ markdown block มา
+    const jsonMatch = output.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("โมเดลไม่ได้ส่งข้อมูลในรูปแบบที่ถูกต้อง");
     }
-
-    const data = JSON.parse(resultText);
     
-    // จัดการข้อมูลให้ตรงกับจำนวนข้อที่กำหนด
+    const data = JSON.parse(jsonMatch[0]);
     let answers = Array.isArray(data.detectedAnswers) ? data.detectedAnswers : [];
-    
-    // ปรับขนาด Array ให้เท่ากับจำนวนข้อสอบจริงเพื่อป้องกัน Error ตอนเปรียบเทียบ
+
+    // ปรับขนาดข้อมูลให้ตรงกับจำนวนข้อ
     if (answers.length < totalQuestions) {
-      const padding = new Array(totalQuestions - answers.length).fill(null);
-      answers = [...answers, ...padding];
-    } else if (answers.length > totalQuestions) {
+      answers = [...answers, ...new Array(totalQuestions - answers.length).fill("")];
+    } else {
       answers = answers.slice(0, totalQuestions);
     }
 
     return {
-      detectedAnswers: answers.map((a: any) => (a === null || a === undefined) ? "" : String(a).trim()),
+      detectedAnswers: answers.map((a: any) => {
+        const s = String(a || "").trim();
+        return answerOptions.includes(s) ? s : "";
+      }),
       confidence: data.confidence || 0,
     };
   } catch (error: any) {
-    console.error("Gemini Scan Service Error:", error);
-    let errorMessage = "การประมวลผลล้มเหลว";
-    if (error.message.includes("API Key") || error.message.includes("401") || error.message.includes("403")) {
-      errorMessage = "API Key ไม่ถูกต้องหรือยังไม่ได้ตั้งค่า (Permission Denied)";
-    } else if (error.message.includes("JSON")) {
-      errorMessage = "โมเดลส่งข้อมูลกลับมาผิดรูปแบบ กรุณาปรับแสงสว่างและลองใหม่";
-    }
-    
-    throw new Error(`${errorMessage} (${error.message})`);
+    console.error("Gemini Error:", error);
+    throw new Error(`การสแกนล้มเหลว: ${error.message}`);
   }
 }

@@ -49,7 +49,7 @@ export default function App() {
 
   const handleAnswerChange = (index: number, value: string) => {
     const newAnswers = [...answerKeyArray];
-    newAnswers[index] = value.trim().substring(0, 1); // รับแค่ตัวอักษรเดียว
+    newAnswers[index] = value.trim().substring(0, 1);
     setAnswerKeyArray(newAnswers);
   };
 
@@ -72,14 +72,6 @@ export default function App() {
       return;
     }
 
-    // ตรวจสอบว่ากรอกเฉลยครบทุกข้อหรือไม่
-    const emptyAnswers = answerKeyArray.some(ans => ans === '');
-    if (emptyAnswers) {
-      if (!confirm("คุณยังกรอกเฉลยไม่ครบทุกข้อ ต้องการดำเนินการต่อหรือไม่?")) {
-        return;
-      }
-    }
-
     setConfig({
       subject: inputSubject,
       totalQuestions: parseInt(inputTotal),
@@ -95,7 +87,7 @@ export default function App() {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: 'environment',
-          width: { ideal: 1920 }, // Request high res for OCR
+          width: { ideal: 1920 },
           height: { ideal: 1080 }
         } 
       });
@@ -105,7 +97,7 @@ export default function App() {
     } catch (err) {
       console.error("Camera access failed", err);
       if (appState === AppState.SCANNING) {
-        alert("กรุณาอนุญาตให้เข้าถึงกล้องเพื่อสแกนข้อสอบ");
+        alert("กรุณาอนุญาตสิทธิ์การเข้าถึงกล้อง");
       }
     }
   };
@@ -123,15 +115,13 @@ export default function App() {
     const canvas = canvasRef.current;
     const video = videoRef.current;
     
-    // Set canvas size to video's actual resolution
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
     
     if (ctx) {
-      ctx.drawImage(video, 0, 0);
-      // Using quality 0.95 for clear text OCR
-      const base64Image = canvas.toDataURL('image/jpeg', 0.95).split(',')[1];
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const base64Image = canvas.toDataURL('image/jpeg', 0.92).split(',')[1];
 
       try {
         const result = await scanExamPaper(base64Image, config.totalQuestions);
@@ -149,9 +139,8 @@ export default function App() {
         setCurrentScanResult({ score, detected: finalAnswers });
         setAppState(AppState.REVIEW);
       } catch (err: any) {
-        console.error("App Scan Error:", err);
-        // แสดง Error ละเอียดเพื่อให้ผู้ใช้ทราบว่าทำไมล้มเหลว
-        alert(err.message || "การสแกนล้มเหลว กรุณาลองใหม่และตรวจสอบความสว่างของภาพ");
+        console.error("Scan Error:", err);
+        alert(err.message || "การสแกนล้มเหลว กรุณาลองใหม่");
       } finally {
         setIsScanning(false);
       }
@@ -303,8 +292,6 @@ export default function App() {
                   type="number" 
                   value={inputTotal} 
                   onChange={e => setInputTotal(e.target.value)}
-                  min="1"
-                  max="100"
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
                 />
               </div>
@@ -320,32 +307,29 @@ export default function App() {
                           type="text" 
                           value={ans} 
                           onChange={e => handleAnswerChange(idx, e.target.value)}
-                          placeholder="?"
                           className="w-full text-center py-2 text-sm font-bold bg-white rounded-lg border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all uppercase"
                         />
                       </div>
                     ))}
                   </div>
                 </div>
-                <p className="text-xs text-slate-500 mt-2 italic">กรอกตัวเลือกเฉลย เช่น ก, ข, ค หรือ ง ในแต่ละข้อ</p>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">รายชื่อนักเรียน (เลขที่, ชื่อ-นามสกุล - 1 คนต่อบรรทัด)</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">รายชื่อนักเรียน (เลขที่, ชื่อ - 1 คนต่อบรรทัด)</label>
                 <textarea 
                   rows={6}
                   value={inputStudents} 
                   onChange={e => setInputStudents(e.target.value)}
-                  placeholder="1, นายสมชาย ใจดี&#10;2, นางสาวใจใส รักเรียน"
+                  placeholder="1, นายสมชาย&#10;2, นางสาวใจดี"
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all font-mono text-sm"
                 />
               </div>
 
               <button 
                 onClick={startExam}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2"
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all"
               >
-                <CheckIcon className="w-5 h-5" />
                 เริ่มสแกนข้อสอบ
               </button>
             </div>
@@ -353,171 +337,80 @@ export default function App() {
         )}
 
         {appState === AppState.SCANNING && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="bg-slate-50 border-b border-slate-200 p-4 flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="bg-indigo-600 p-2 rounded-lg text-white">
-                    <UserIcon className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">กำลังสแกน</div>
-                    <div className="text-lg font-bold text-slate-800">
-                      เลขที่ {config.students[currentStudentIndex].id} - {config.students[currentStudentIndex].name}
-                    </div>
-                  </div>
-                </div>
-                <div className="text-sm font-medium text-slate-500">
-                  คนที่ {currentStudentIndex + 1} จาก {config.students.length}
-                </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="bg-slate-50 p-4 border-b border-slate-200 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <UserIcon className="w-5 h-5 text-indigo-600" />
+                <span className="font-bold">เลขที่ {config.students[currentStudentIndex].id} - {config.students[currentStudentIndex].name}</span>
               </div>
+              <span className="text-xs text-slate-500">{currentStudentIndex + 1}/{config.students.length}</span>
+            </div>
 
-              <div className="relative aspect-[3/4] bg-black">
-                <video 
-                  ref={videoRef} 
-                  autoPlay 
-                  playsInline 
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none flex items-center justify-center">
-                  <div className="w-full h-full border-2 border-dashed border-indigo-400 rounded-lg"></div>
+            <div className="relative aspect-[3/4] bg-black">
+              <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+              <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none">
+                <div className="w-full h-full border-2 border-dashed border-indigo-400 rounded-lg"></div>
+              </div>
+              {isScanning && (
+                <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white">
+                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-400 border-t-transparent mb-4"></div>
+                  <p className="font-semibold">AI กำลังประมวลผล...</p>
                 </div>
-                {isScanning && (
-                  <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white">
-                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-400 border-t-transparent mb-4"></div>
-                    <p className="mt-2 font-semibold">AI กำลังวิเคราะห์รูปภาพ...</p>
-                  </div>
-                )}
-              </div>
+              )}
+            </div>
 
-              <div className="p-6">
-                <button 
-                  onClick={handleScan}
-                  disabled={isScanning}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2"
-                >
-                  <CameraIcon className="w-6 h-6" />
-                  {isScanning ? 'กำลังประมวลผล...' : 'บันทึกภาพและตรวจ'}
-                </button>
-              </div>
+            <div className="p-6">
+              <button 
+                onClick={handleScan}
+                disabled={isScanning}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2"
+              >
+                <CameraIcon className="w-6 h-6" /> บันทึกภาพ
+              </button>
             </div>
           </div>
         )}
 
         {appState === AppState.REVIEW && currentScanResult && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
-             <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
-               <CheckIcon className="w-12 h-12" />
+             <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+               <CheckIcon className="w-10 h-10" />
              </div>
-             
-             <h2 className="text-2xl font-bold text-slate-800 mb-2">สแกนเสร็จสิ้น</h2>
-             <p className="text-slate-500 mb-8">ตรวจสอบผลคะแนนของ {config.students[currentStudentIndex].name}</p>
+             <h2 className="text-2xl font-bold text-slate-800 mb-2">สแกนสำเร็จ</h2>
+             <p className="text-slate-500 mb-8">{config.students[currentStudentIndex].name}</p>
 
-             <div className="bg-slate-50 rounded-2xl p-8 mb-8 inline-block min-w-[200px]">
-               <div className="text-5xl font-black text-indigo-600 mb-2">
-                 {currentScanResult.score} <span className="text-slate-300 text-3xl font-light">/ {config.totalQuestions}</span>
+             <div className="bg-slate-50 rounded-2xl p-6 mb-8 inline-block">
+               <div className="text-4xl font-black text-indigo-600">
+                 {currentScanResult.score} <span className="text-slate-400 text-xl">/ {config.totalQuestions}</span>
                </div>
-               <div className="text-sm font-bold text-slate-400 uppercase tracking-widest">คะแนนที่ได้</div>
+               <div className="text-xs font-bold text-slate-400 mt-1">คะแนน</div>
              </div>
 
-             <div className="grid grid-cols-2 gap-4 mb-8 max-w-sm mx-auto">
-               <button 
-                 onClick={() => setAppState(AppState.SCANNING)}
-                 className="px-6 py-3 border border-slate-200 text-slate-600 font-semibold rounded-xl hover:bg-slate-50 transition-all"
-               >
-                 สแกนใหม่
-               </button>
-               <button 
-                 onClick={confirmResult}
-                 className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100"
-               >
-                 ยืนยันคะแนน
-               </button>
+             <div className="grid grid-cols-2 gap-4 max-w-xs mx-auto">
+               <button onClick={() => setAppState(AppState.SCANNING)} className="px-6 py-3 border rounded-xl font-semibold">สแกนใหม่</button>
+               <button onClick={confirmResult} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold">ถัดไป</button>
              </div>
           </div>
         )}
 
         {appState === AppState.COMPLETED && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
-              <div className="w-20 h-20 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                <DownloadIcon className="w-10 h-10" />
-              </div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">ตรวจครบทุกแผ่นแล้ว</h2>
-              <p className="text-slate-500 mb-8">คุณตรวจข้อสอบนักเรียนทั้งหมด {config.students.length} คน ในวิชา {config.subject} เรียบร้อยแล้ว</p>
-              
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button 
-                  onClick={exportExcel}
-                  className="px-8 py-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
-                >
-                  <DownloadIcon className="w-5 h-5" />
-                  ส่งออกเป็น Excel
-                </button>
-                <button 
-                  onClick={() => window.location.reload()}
-                  className="px-8 py-4 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all"
-                >
-                  เริ่มวิชาใหม่
-                </button>
-              </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
+            <div className="w-20 h-20 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6">
+              <DownloadIcon className="w-10 h-10" />
             </div>
-
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-               <table className="w-full text-left">
-                 <thead className="bg-slate-50 border-b border-slate-200">
-                   <tr>
-                     <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">เลขที่</th>
-                     <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">ชื่อนักเรียน</th>
-                     <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">คะแนน</th>
-                   </tr>
-                 </thead>
-                 <tbody className="divide-y divide-slate-100">
-                   {results.map((r, i) => (
-                     <tr key={i} className="hover:bg-slate-50 transition-colors">
-                       <td className="px-6 py-4 text-slate-600 font-mono text-sm">{r.studentId}</td>
-                       <td className="px-6 py-4 text-slate-800 font-semibold">{r.studentName}</td>
-                       <td className="px-6 py-4 text-right">
-                         <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${r.score / r.total >= 0.5 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                           {r.score} / {r.total}
-                         </span>
-                       </td>
-                     </tr>
-                   ))}
-                 </tbody>
-               </table>
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">ตรวจเสร็จสิ้น</h2>
+            <p className="text-slate-500 mb-8">วิชา: {config.subject}</p>
+            <div className="flex flex-col gap-4 max-w-xs mx-auto">
+              <button onClick={exportExcel} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2">
+                <DownloadIcon className="w-5 h-5" /> ส่งออก Excel
+              </button>
+              <button onClick={() => window.location.reload()} className="text-slate-500 font-semibold">เริ่มใหม่</button>
             </div>
           </div>
         )}
 
         <canvas ref={canvasRef} className="hidden" />
       </main>
-
-      <footer className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-slate-200">
-        <div className="max-w-4xl mx-auto flex justify-around items-center">
-           <button 
-             onClick={() => { setShowHistory(true); }}
-             className={`flex flex-col items-center gap-1 ${appState === AppState.SETUP && !showHistory ? 'text-indigo-600' : 'opacity-40 hover:opacity-100'} transition-all`}
-           >
-             <UserIcon className="w-5 h-5" />
-             <span className="text-[10px] font-bold">ข้อมูลวิชา</span>
-           </button>
-           <button 
-             onClick={() => { setShowHistory(false); if(appState === AppState.COMPLETED) setAppState(AppState.SETUP); }}
-             className={`flex flex-col items-center gap-1 ${(appState === AppState.SCANNING || appState === AppState.REVIEW) && !showHistory ? 'text-indigo-600' : 'opacity-40 hover:opacity-100'} transition-all`}
-           >
-             <CameraIcon className="w-5 h-5" />
-             <span className="text-[10px] font-bold">สแกนเนอร์</span>
-           </button>
-           <button 
-             onClick={() => setShowHistory(true)}
-             className={`flex flex-col items-center gap-1 ${showHistory || appState === AppState.COMPLETED ? 'text-indigo-600' : 'opacity-40 hover:opacity-100'} transition-all`}
-           >
-             <DownloadIcon className="w-5 h-5" />
-             <span className="text-[10px] font-bold">ประวัติ</span>
-           </button>
-        </div>
-      </footer>
     </div>
   );
 }
